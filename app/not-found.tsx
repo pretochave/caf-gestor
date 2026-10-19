@@ -1,0 +1,2 @@
+import Brand from './components/brand';
+export default function NotFound(){return <main className="not-found"><Brand/><span className="eyebrow">PÁGINA NÃO ENCONTRADA</span><h1>Este caminho ainda não<br/>leva à sua fazenda.</h1><p>Volte ao início ou abra seu painel para continuar.</p><div><a className="btn btn-primary" href="/dashboard">Abrir meu painel</a><a className="btn btn-secondary" href="/">Voltar ao início</a></div></main>}

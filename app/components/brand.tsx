@@ -1,0 +1,2 @@
+import {Sprout} from 'lucide-react';
+export default function Brand({business=false,name='CaféGestor',logo}:{business?:boolean;name?:string;logo?:string}){return <a href="/" className="brand" aria-label={name+' — início'}>{logo&&/^https?:\/\//.test(logo)?<img className="brand-custom-logo" src={logo} alt=""/>:<span className="brand-icon"><Sprout size={24} strokeWidth={1.8}/></span>}<span>{name==='CaféGestor'?<>Café<span className="brand-light">Gestor</span></>:name}{business&&<small>BUSINESS</small>}</span></a>}
