@@ -1,91 +1,68 @@
-# CaféGestor + CaféGestor Business
+# CaféGestor — versão independente
 
-Plataforma em português para organizar propriedades de café, safras, custos, receitas, produção e a operação comercial do SaaS.
+Aplicativo em português com site público, cadastro próprio, verificação por código de e-mail, login e senha, sessão e área privada por produtor. O build independente não exige conta ChatGPT/OpenAI e não usa os cabeçalhos de autenticação da hospedagem antiga.
 
-## Arquitetura desta entrega
+## Começar
 
-- React 19 + TypeScript, roteamento App Router compatível com Next.js via Vinext e Vite.
-- Cloudflare Workers na hospedagem Sites, D1/SQLite persistente e migrações Drizzle.
-- Autenticação gerenciada pela plataforma Sites (entrar com ChatGPT). A recuperação e a verificação da conta são feitas pelo provedor de identidade. Não há cadastro nativo por senha, Supabase Auth ou PostgreSQL/RLS nesta implementação.
-- Isolamento dos dados por usuário em cada operação do servidor, chaves estrangeiras compostas de propriedade e índices. O cliente não define ownerId, papéis ou assinaturas.
-- Administrador autorizado por ADMIN_EMAIL no ambiente do servidor. Não existe cadastro público de administradores nem promoção automática do primeiro usuário.
-- Stripe é o provedor escolhido para cobranças. A aplicação permanece no plano gratuito enquanto credenciais e confirmação confiável não estiverem disponíveis.
-
-## Funcionalidades
-
-Site institucional com preços públicos vindos do banco; cadastro e edição de fazendas e talhões; despesas e receitas com filtros; safras e produção; dashboard com cálculos a partir dos registros; simulador condicionado ao plano; cinco relatórios; Excel OOXML real, CSV e impressão para PDF; histórico de chamados e respostas; perfil e exclusão de dados.
-
-Business: indicadores de usuários e assinaturas, CRM e histórico de contatos, suspensão e reativação de contas, configuração de planos e recursos, finanças separando recorrência de caixa, suporte, configurações públicas, comunicados, auditoria e eventos reais. Não exibe disponibilidade fictícia.
-
-A interface inicia sem fazendas ou clientes de exemplo. O botão “Explorar exemplo” usa dados ilustrativos apenas na memória da tela e identifica esse estado. Esses números não são gravados no banco.
-
-## Desenvolvimento local
-
-Requer Node.js 22.13+ com npm e Git para publicação.
+Requer Node.js 22.13+ com npm.
 
 ```powershell
 npm ci
-npm run build
+npm run db:cloudflare -- --local
+npm run dev:cloudflare
 ```
 
-Crie um arquivo `.dev.vars`, que deve permanecer ignorado pelo Git:
+A prévia abre em http://127.0.0.1:5174. Use `.dev.vars` ignorado pelo Git para os valores de desenvolvimento. O banco independente fica em `.cloudflare-runtime/state`, separado da antiga prévia do Sites.
 
-```dotenv
-ADMIN_EMAIL=seu-email-administrador
-```
+A configuração de autenticação exige `SITE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY` e `EMAIL_FROM`, além do binding D1 `DB`. Veja [AUTHENTICATION.md](AUTHENTICATION.md) para configurar o remetente e os testes. Sem a integração de e-mail, o cadastro retorna um erro explícito e não informa que enviou um código.
 
-Aplique as migrações locais uma vez por arquivo, na ordem do diretório `drizzle/`:
+## Fluxo de autenticação
+
+1. Nome, e-mail e senha de 10 a 128 caracteres em `/cadastro`.
+2. Código numérico de 6 dígitos enviado pelo Resend; validade de 10 minutos, até 5 tentativas e reenvio após 60 segundos. A verificação acontece no próprio site.
+3. Conta ativada entra por e-mail e senha em `/login`.
+4. “Esqueci minha senha” envia um link válido por 30 minutos e uma única utilização. A troca revoga as sessões anteriores.
+5. Sessão persistente com cookie HttpOnly/Secure em HTTPS; o botão Sair revoga a sessão no banco.
+6. Páginas e operações privadas verificam a sessão no servidor. Administração exige o e-mail configurado em `ADMIN_EMAIL` com verificação concluída.
+
+BetterAuth 1.7.12 mantém credenciais e sessões no D1 com adaptador Drizzle. As senhas usam o hash scrypt da biblioteca. Códigos e identificadores dos tokens são protegidos por hash/HMAC. Limites de tentativa, intervalo de reenvio e serialização de operações usam D1, preservando o controle entre processos e requisições simultâneas.
+
+## Módulos de gestão
+
+Fazendas e talhões, despesas e receitas, safras e produção, dashboard, simulador, cinco relatórios, Excel/CSV e impressão em PDF, planos e suporte. CaféGestor Business inclui CRM e histórico, usuários, planos, assinaturas, finanças, suporte, configurações e auditoria. O banco usa vínculos compostos de propriedade e predicados de usuário nas operações.
+
+Os registros de demonstração do botão “Explorar exemplo” ficam apenas na memória da interface e são identificados como ilustrativos. Não são gravados como clientes ou dados reais.
+
+## Publicar
+
+Repositório de destino informado pelo proprietário: https://github.com/pretochave/caf-gestor.git.
+
+Consulte [DEPLOY-CLOUDFLARE.md](DEPLOY-CLOUDFLARE.md). O Worker terá endereço público workers.dev na conta Cloudflare escolhida. O código pode permanecer em repositório privado. Scripts não publicam usando identificadores de banco fictícios.
 
 ```powershell
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_outgoing_wendell_vaughn.sql
+npm run cloudflare:provision
+npm run build:cloudflare
+npm run deploy:cloudflare
 ```
 
-Repita o comando substituindo `--file` para cada migração posterior, sem reaplicar arquivos já executados. O banco local é separado do banco hospedado.
+O deploy aplica apenas migrações pendentes, usando ledger do D1. Não altere arquivos SQL já aplicados; adicione migrações novas. Os valores reais de secrets ficam nas configurações do Worker ou no gerenciador de credenciais do CI.
+
+O antigo build do Sites foi preservado apenas como histórico de migração; a publicação antiga em `chatgpt.site` não é atualizada pelo comando de deploy independente. Dados antigos não são ligados a uma nova conta por coincidência de e-mail. Essa migração, se necessária, exige mapeamento explícito de usuários para preservar a propriedade dos registros.
+
+## Verificação
 
 ```powershell
-npm run dev
-```
-
-Abra a URL Local impressa no terminal. No perfil portable, o login de desenvolvimento simula apenas a conta fictícia `seedy@sites.test` em loopback. Essa simulação não faz parte da versão publicada. Para testar o Business local, use temporariamente esse endereço em ADMIN_EMAIL; restaure o e-mail correto antes de usar uma conta real.
-
-## Testes
-
-```powershell
-node --experimental-strip-types --test tests/*.test.mjs
+npm test
 npx tsc --noEmit
-npm run build
+npm run build:cloudflare
 ```
 
-Os testes cobrem autorização, dados de diferentes produtores, vínculos inválidos, limites atômicos, exclusão de dados, histórico de suporte, geração Excel e integração Stripe com provedor simulado. A validação independente de Excel usa openpyxl quando a variável CAFEGESTOR_TEST_PYTHON aponta para um Python com essa biblioteca; caso não esteja disponível, esse teste específico é sinalizado como ignorado.
+Há testes de autenticação com servidor BetterAuth real, SQLite e transporte de e-mail controlado; também há testes do adaptador HTTP do Resend com respostas controladas, autorização, isolamento por produtor, limites atômicos, suporte, geração de Excel e pagamentos Stripe simulados. Os testes de e-mail controlado não equivalem à entrega de mensagem real em uma caixa de entrada.
 
-## Configuração de produção
+Para a validação independente dos arquivos Excel, configure `CAFEGESTOR_TEST_PYTHON` com um Python que possua openpyxl. Sem isso, apenas esse teste é sinalizado como ignorado.
 
-A hospedagem gerencia autenticação e o binding DB. Configure segredos pelo gerenciador de ambiente da plataforma. Não inclua credenciais no código, em formulários administrativos ou no manifesto de hospedagem.
+## Pendências comerciais anteriores
 
-- ADMIN_EMAIL: e-mail único autorizado para o Business.
-- SITE_URL: origem HTTPS canônica da aplicação.
-- STRIPE_SECRET_KEY e STRIPE_WEBHOOK_SECRET: credenciais do mesmo ambiente Stripe.
+A integração Stripe permanece condicionada a credenciais, homologação real e configuração das regras de upgrade/downgrade. Veja [BILLING.md](BILLING.md). Revisão dos termos/política, dados do controlador, retenção/backups e observabilidade externa continuam necessários antes do lançamento comercial. A exportação em PDF usa a função Imprimir/Salvar como PDF do navegador.
 
-Cadastros, informações agrícolas e suporte usam o D1 hospedado. Não dependem de localStorage. As alterações de preços aplicam-se às novas contratações; valores de assinaturas existentes são preservados no contrato de cobrança.
-
-## Validação por etapa
-
-| Etapa | Entregue | Validação e limite |
-|---|---|---|
-| 1. Base e acesso | Identidade gerenciada, banco, permissões por usuário/admin e migrações | Testes de autorização e integridade; login local e respostas da API conferidos. Auth nativa Supabase não implementada. |
-| 2. Gestão rural | Fazendas, talhões, safras, custos, receitas e colheitas | Cadastros reais testados na API; fazenda cadastrada pelo navegador e recuperada em nova requisição. |
-| 3. Resultados | Dashboard, simulador, cinco relatórios, Excel/CSV/impressão PDF | Cálculos usam dados cadastrados; gates do plano no servidor; Excel aberto independentemente com openpyxl. |
-| 4. Business | CRM, usuários, suporte, auditoria e indicadores | Preços, notas, tarefas, histórico e respostas persistidos nos testes administrativos. |
-| 5. Planos | Preços, periodicidade, limites, recursos, visibilidade e ordem | Limites conferidos no servidor; alteração de preço refletiu na consulta pública. |
-| 6. Pagamentos | Código Stripe, Checkout, portal e webhook autenticado e idempotente | Integração real não ativada sem credenciais. Ensaios usam provedor simulado; não representam homologação Stripe. |
-| 7. Operação | Eventos de cadastro/erro, suporte, responsividade, testes e build | Prévia desktop verificada no navegador. Mobile revisado por CSS, sem emulação disponível. Observabilidade externa e preparação comercial continuam pendentes. |
-
-## Antes do lançamento comercial
-
-Ativar e homologar Stripe em ambiente de teste, configurar o portal e regras de migração de contratos, completar dados do controlador e termos/política, definir retenção/backups e conectar observabilidade externa. Reavaliar testes de segurança e carga para a escala prevista. A publicação inicial do Site é privada e não altera sua audiência automaticamente.
-
-O fluxo “Imprimir / PDF” depende da opção Salvar como PDF do navegador; não é um serviço de geração PDF em segundo plano. Solicitações de suporte ficam no aplicativo, sem envio automático de e-mail ou SMS.
-
-## Créditos da imagem
-
-Foto de cafezal usada como ilustração: imagem Fazenda Dutra apresentada por [Crest Coffee Roasters](https://www.crestcoffeeroasters.com/shop/p/medium-roast-brazil). A imagem não identifica propriedades de clientes cadastrados.
+Foto ilustrativa de cafezal: [Crest Coffee Roasters — Fazenda Dutra](https://www.crestcoffeeroasters.com/shop/p/medium-roast-brazil). A imagem não representa propriedade de cliente cadastrado.

@@ -1,0 +1,55 @@
+name: CaféGestor · Cloudflare
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cafegestor-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci --include=dev --include=optional
+      - name: Validar tipos e operações críticas
+        run: |
+          npx tsc --noEmit
+          node --experimental-strip-types --test tests/*.test.mjs
+  deploy:
+    needs: validate
+    if: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Confirmar configuração da conta de destino
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Configure o secret CLOUDFLARE_API_TOKEN no ambiente production."; exit 1; }
+          node --input-type=module -e 'import {resolveCloudflareConfig,requireProductionConfig} from "./scripts/cloudflare-config.mjs"; requireProductionConfig(resolveCloudflareConfig());'
+      - name: Instalar dependências
+        run: npm ci --include=dev --include=optional
+      - name: Compilar a versão independente
+        run: npm run build:cloudflare
+      - name: Aplicar migrações e publicar
+        run: npm run deploy:cloudflare

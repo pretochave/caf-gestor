@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { BillingError, billingStatus, createCheckout, createPortal, type BillingConfig } from "@/lib/billing";
 import { ApiError, assertSameOrigin } from "@/lib/security";
 import { database, identity, initialize, publicConfig } from "@/lib/server";

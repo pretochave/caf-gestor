@@ -1,7 +1,9 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ApiError, assertOwner, assertSameOrigin, entitySchemas, mutationSchema, requireFeature } from "@/lib/security";
 import { asProfile, auditStatement, camel, currentBillingMode, database, decode, emptyData, entitlements, first, identity, initialize, publicConfig, requireAdmin, rows } from "@/lib/server";
 import type { AppData, Plan, Profile, Subscription, Ticket } from "@/lib/types";
+import { verificationIdentifier } from "@/lib/auth-policy";
+import { authConfiguration } from "@/lib/auth-server";
 
 const tenantTables = { farm: "farms", plot: "plots", season: "seasons", expense: "expenses", production: "productions", revenue: "revenues", ticket: "tickets" } as const;
 type TenantEntity = keyof typeof tenantTables;
@@ -118,6 +120,9 @@ export async function POST(request: Request) {
         ...["expenses", "productions", "revenues", "plots", "farms", "seasons", "tickets"].map((table) => db.prepare(`DELETE FROM ${table} WHERE owner_id = ?`).bind(profile.id)),
         ...["contacts", "crm", "payments", "subscriptions", "events"].map((table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(profile.id)),
         db.prepare("DELETE FROM profiles WHERE id = ?").bind(profile.id),
+        // Native identity deletion cascades account credentials and every active session.
+        db.prepare("DELETE FROM auth_verifications WHERE value = ? OR identifier = ?").bind(profile.id, await verificationIdentifier(authConfiguration(), `email-verification-otp-${profile.email}`)),
+        db.prepare("DELETE FROM auth_users WHERE id = ?").bind(profile.id),
         auditStatement(db, "account-deletion", "delete", "profile", "anonymized"),
       ]);
       return json({ ok: true, deleted: true });

@@ -1,5 +1,5 @@
 export type Role = "producer" | "admin";
-export type Profile = { id: string; name: string; email: string; role: Role; plan: string; status: "active" | "suspended"; phone?: string; city?: string; state?: string; company?: string; createdAt?: string; lastAccess?: string; lastLogin?: string };
+export type Profile = { id: string; name: string; email: string; emailVerified?: boolean; role: Role; plan: string; status: "active" | "suspended"; phone?: string; city?: string; state?: string; company?: string; createdAt?: string; lastAccess?: string; lastLogin?: string };
 export type RecordBase = { id: string; createdAt?: string; updatedAt?: string };
 export type Farm = RecordBase & { name: string; city: string; state: string; totalArea: number; cultivatedArea: number; plants: number; variety: string; spacing: string; year: number };
 export type Plot = RecordBase & { farmId: string; name: string; area: number; plants: number; variety: string; year: number };

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+export * from "./auth-schema";
 
 const timestamps = () => ({
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -11,6 +12,7 @@ export const profiles = sqliteTable("profiles", {
   phone: text("phone").notNull().default(""), city: text("city").notNull().default(""),
   state: text("state").notNull().default(""), company: text("company").notNull().default(""),
   status: text("status").notNull().default("active"),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
   lastAccess: text("last_access").notNull().default(sql`CURRENT_TIMESTAMP`), ...timestamps(),
 }, (t) => [index("profiles_email_idx").on(t.email), check("profiles_status_check", sql`${t.status} IN ('active', 'suspended')`)]);
 

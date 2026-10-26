@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { Plan, Subscription } from "./types";
 
 export class ApiError extends Error {

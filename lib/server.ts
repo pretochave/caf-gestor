@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
-import { activeSubscription, ApiError, isAdmin } from "./security";
+import { getAppUser } from "./auth-server";
+import { activeSubscription, ApiError } from "./security";
+import { verifiedAdministrator } from "./auth-policy";
 import { billingLiveMode, billingStatus, type BillingConfig } from "./billing";
 import type { AppData, Plan, PlatformSettings, Profile, Subscription } from "./types";
 
@@ -33,10 +34,10 @@ export function decode(row: DbRow): Record<string, unknown> {
   return { ...(value as Record<string, unknown>), id: row.id, ...(row.owner_id ? { ownerId: row.owner_id, userId: row.owner_id } : {}), ...(row.farm_id ? { farmId: row.farm_id } : {}), ...(row.plot_id ? { plotId: row.plot_id } : {}), ...(row.season_id ? { seasonId: row.season_id } : {}), ...(row.user_id ? { userId: row.user_id } : {}), createdAt: row.created_at, updatedAt: row.updated_at };
 }
 export function camel(row: DbRow): DbRow {
-  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), ["livemode", "cancel_at_period_end"].includes(key) ? Boolean(value) : value]));
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()), ["livemode", "cancel_at_period_end", "email_verified"].includes(key) ? Boolean(value) : value]));
 }
 export function asProfile(row: DbRow, plan = "free"): Profile {
-  return { ...camel(row), id: String(row.id), name: String(row.name), email: String(row.email), role: isAdmin(String(row.email), config().ADMIN_EMAIL) ? "admin" : "producer", plan, status: row.status as Profile["status"], lastLogin: String(row.last_access) };
+  return { ...camel(row), id: String(row.id), name: String(row.name), email: String(row.email), role: verifiedAdministrator(String(row.email), row.email_verified === true || row.email_verified === 1, config().ADMIN_EMAIL) ? "admin" : "producer", plan, status: row.status as Profile["status"], lastLogin: String(row.last_access) };
 }
 export async function initialize(db: D1Database): Promise<void> {
   await db.batch([
@@ -51,11 +52,11 @@ export async function publicConfig(db: D1Database): Promise<{ plans: Plan[]; set
   return { plans, settings };
 }
 export async function identity(db: D1Database, required = true): Promise<Profile | null> {
-  const auth = await getChatGPTUser();
+  const auth = await getAppUser();
   if (!auth) { if (required) throw new ApiError(401, "Entre na sua conta para continuar."); return null; }
-  const inserted = await db.prepare("INSERT INTO profiles (id, name, email) VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING").bind(auth.userId, auth.fullName || auth.displayName, auth.email).run();
+  const inserted = await db.prepare("INSERT INTO profiles (id, name, email, email_verified) VALUES (?, ?, ?, 1) ON CONFLICT(id) DO NOTHING").bind(auth.userId, auth.fullName || auth.displayName, auth.email).run();
   if (inserted.meta.changes) await db.prepare("INSERT INTO events (id, type, user_id, message) VALUES (?, 'registration', ?, 'Nova conta cadastrada')").bind(crypto.randomUUID(), auth.userId).run();
-  await db.prepare("UPDATE profiles SET email = ?, last_access = CURRENT_TIMESTAMP WHERE id = ?").bind(auth.email, auth.userId).run();
+  await db.prepare("UPDATE profiles SET email = ?, email_verified = 1, last_access = CURRENT_TIMESTAMP WHERE id = ?").bind(auth.email, auth.userId).run();
   const profile = asProfile((await first(db, "SELECT * FROM profiles WHERE id = ?", auth.userId))!);
   if (profile.status === "suspended") throw new ApiError(403, "Sua conta está suspensa. Entre em contato com o suporte.");
   return profile;
