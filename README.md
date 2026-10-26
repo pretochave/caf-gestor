@@ -2,6 +2,12 @@
 
 Aplicativo em português com site público, cadastro próprio, verificação por código de e-mail, login e senha, sessão e área privada por produtor. O build independente não exige conta ChatGPT/OpenAI e não usa os cabeçalhos de autenticação da hospedagem antiga.
 
+## Estado da publicação
+
+Site independente publicado em [cafegestor.cafegestor.workers.dev](https://cafegestor.cafegestor.workers.dev), com banco D1 remoto configurado. O código está no [GitHub](https://github.com/pretochave/caf-gestor). `SITE_URL`, `BETTER_AUTH_SECRET` e `ADMIN_EMAIL` já estão configurados no Worker, somente no servidor.
+
+O envio real dos códigos e links de recuperação, assim como a ativação de novas contas, ainda aguarda um domínio/remetente verificado no Resend e a configuração de `RESEND_API_KEY` e `EMAIL_FROM`. Sem essas duas configurações, o cadastro informa a pendência e não simula o envio. Veja [AUTHENTICATION.md](AUTHENTICATION.md).
+
 ## Começar
 
 Requer Node.js 22.13+ com npm.
