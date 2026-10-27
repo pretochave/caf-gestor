@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, foreignKey, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 export * from "./auth-schema";
+export * from "./firebase-schema";
 
 const timestamps = () => ({
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

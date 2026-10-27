@@ -7,8 +7,8 @@ Esta versão roda na conta Cloudflare do proprietário, em um Worker público co
 1. Acesso à conta GitHub na qual o repositório será criado. O código pode ficar em um repositório privado; a aplicação hospedada pode ser pública.
 2. Acesso à conta Cloudflare e seu `CLOUDFLARE_ACCOUNT_ID`. Para CI, um token limitado à conta com permissões de publicar Workers e administrar o D1 selecionado. Use a interface da Cloudflare ou secrets do GitHub, sem colar tokens em chats.
 3. O identificador real do banco D1. `cloudflare:provision` cria ou reutiliza `cafegestor-db` na conta selecionada e grava seu UUID. O UUID inicialmente presente no arquivo é exclusivo do desenvolvimento local; o comando de publicação recusa esse valor.
-4. Os secrets e o remetente do serviço de e-mail usados pela autenticação nativa, descritos no guia de autenticação. Sem um remetente autorizado e uma chave de envio, nenhuma entrega real de código ou recuperação de senha pode ser confirmada.
-5. O endereço HTTPS definitivo em `SITE_URL`, após a primeira publicação. As credenciais de autenticação e e-mail são configuradas como secrets no Worker, nunca como variáveis `VITE_` ou código no navegador.
+4. Um projeto Firebase no plano Spark, com E-mail/senha habilitado e `cafegestor.cafegestor.workers.dev` nos domínios autorizados. O projeto criado para esta aplicação é `cafegestor-77252`. O fluxo padrão usa os e-mails de confirmação e recuperação do Firebase, sem comprar domínio e sem configurar Resend. A configuração e a entrega real devem ser validadas conforme [AUTHENTICATION.md](AUTHENTICATION.md).
+5. `AUTH_PROVIDER=firebase`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `SITE_URL`, `BETTER_AUTH_SECRET` e `ADMIN_EMAIL` no servidor. As chaves e os tokens não devem ser incluídos em variáveis `VITE_`, no código do navegador ou no GitHub. Não é necessária uma chave privada de conta de serviço para o fluxo REST usado pela aplicação.
 
 ## Preparar e conferir localmente
 
@@ -39,9 +39,9 @@ npm run deploy:cloudflare
 
 O comando `deploy:cloudflare` valida o destino, confere se a compilação usa a mesma conta e o mesmo banco, aplica apenas migrações pendentes no D1 remoto e publica os arquivos gerados em `dist-cloudflare/server/wrangler.json`. A opção `--dry-run` valida e empacota o Worker sem aplicar migrações remotas ou publicar.
 
-O Wrangler informa o endereço `https://cafegestor.<subdominio-da-conta>.workers.dev`. Copie o endereço retornado pela Cloudflare; o subdomínio não deve ser adivinhado. Configure `SITE_URL` com essa origem e os secrets de autenticação e e-mail no painel **Workers & Pages → cafegestor → Settings → Variables and Secrets**. Quando configurados, valide o fluxo com um endereço de e-mail seu antes de divulgar o link na bio.
+O endereço atual é `https://cafegestor.cafegestor.workers.dev`. Para outra conta, use o endereço retornado pelo Wrangler; o subdomínio não deve ser adivinhado. Configure `SITE_URL` com essa origem e as variáveis de autenticação no painel **Workers & Pages → cafegestor → Settings → Variables and Secrets**. Configure também o mesmo hostname nos domínios autorizados do Firebase e a URL de ação `https://cafegestor.cafegestor.workers.dev/firebase-action` nos modelos de e-mail, caso use o callback próprio. Quando configurados, valide o fluxo com um endereço de e-mail seu antes de divulgar o cadastro.
 
-Também é possível usar um domínio próprio pelo painel Cloudflare. Alterar a origem exige atualizar `SITE_URL` e conferir os retornos da autenticação e do pagamento.
+O endereço workers.dev permite acesso público sem registrar domínio próprio. Um domínio próprio continua opcional. Alterar a origem exige atualizar `SITE_URL`, os domínios autorizados e a URL de ação dos modelos Firebase, além de conferir os retornos da autenticação e do pagamento. O plano Spark do Firebase possui cotas; consulte o [guia de autenticação](AUTHENTICATION.md) antes de aumentar o volume de uso.
 
 ## Publicação contínua pelo GitHub
 

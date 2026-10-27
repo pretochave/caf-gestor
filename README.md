@@ -1,12 +1,12 @@
 # CaféGestor — versão independente
 
-Aplicativo em português com site público, cadastro próprio, verificação por código de e-mail, login e senha, sessão e área privada por produtor. O build independente não exige conta ChatGPT/OpenAI e não usa os cabeçalhos de autenticação da hospedagem antiga.
+Aplicativo em português com site público, cadastro próprio, confirmação de e-mail por link, login e senha, sessão e área privada por produtor. A autenticação padrão usa Firebase Authentication. O visitante não precisa de conta Google, ChatGPT ou OpenAI para criar sua conta com e-mail e senha.
 
 ## Estado da publicação
 
-Site independente publicado em [cafegestor.cafegestor.workers.dev](https://cafegestor.cafegestor.workers.dev), com banco D1 remoto configurado. O código está no [GitHub](https://github.com/pretochave/caf-gestor). `SITE_URL`, `BETTER_AUTH_SECRET` e `ADMIN_EMAIL` já estão configurados no Worker, somente no servidor.
+Site independente publicado em [cafegestor.cafegestor.workers.dev](https://cafegestor.cafegestor.workers.dev), com banco D1 remoto configurado. O código está no [GitHub](https://github.com/pretochave/caf-gestor). O endereço workers.dev permite manter o acesso público sem registrar um domínio próprio.
 
-O envio real dos códigos e links de recuperação, assim como a ativação de novas contas, ainda aguarda um domínio/remetente verificado no Resend e a configuração de `RESEND_API_KEY` e `EMAIL_FROM`. Sem essas duas configurações, o cadastro informa a pendência e não simula o envio. Veja [AUTHENTICATION.md](AUTHENTICATION.md).
+O projeto Firebase `cafegestor-77252` foi criado para confirmar e-mails e recuperar senhas usando os e-mails do próprio serviço, sem comprar domínio nem configurar Resend. A ativação real ainda depende da configuração do projeto, das variáveis do Worker e de um teste com uma caixa de entrada real. A preparação do código não comprova entrega de e-mail. Veja [AUTHENTICATION.md](AUTHENTICATION.md).
 
 ## Começar
 
@@ -20,18 +20,20 @@ npm run dev:cloudflare
 
 A prévia abre em http://127.0.0.1:5174. Use `.dev.vars` ignorado pelo Git para os valores de desenvolvimento. O banco independente fica em `.cloudflare-runtime/state`, separado da antiga prévia do Sites.
 
-A configuração de autenticação exige `SITE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY` e `EMAIL_FROM`, além do binding D1 `DB`. Veja [AUTHENTICATION.md](AUTHENTICATION.md) para configurar o remetente e os testes. Sem a integração de e-mail, o cadastro retorna um erro explícito e não informa que enviou um código.
+A configuração padrão exige `AUTH_PROVIDER=firebase`, `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `SITE_URL` e `BETTER_AUTH_SECRET`, além do binding D1 `DB`. `ADMIN_EMAIL` define o administrador após a confirmação do e-mail. Os valores ficam no servidor; o `.env.example` contém somente nomes e exemplos vazios.
 
 ## Fluxo de autenticação
 
 1. Nome, e-mail e senha de 10 a 128 caracteres em `/cadastro`.
-2. Código numérico de 6 dígitos enviado pelo Resend; validade de 10 minutos, até 5 tentativas e reenvio após 60 segundos. A verificação acontece no próprio site.
+2. Link de confirmação enviado pelo Firebase. O cliente abre o link recebido para confirmar o e-mail. O reenvio tem intervalo mínimo de 60 segundos.
 3. Conta ativada entra por e-mail e senha em `/login`.
-4. “Esqueci minha senha” envia um link válido por 30 minutos e uma única utilização. A troca revoga as sessões anteriores.
+4. “Esqueci minha senha” solicita um link seguro ao Firebase. A validade e a aplicação do código de ação são verificadas pelo serviço; a troca encerra as sessões anteriores da aplicação.
 5. Sessão persistente com cookie HttpOnly/Secure em HTTPS; o botão Sair revoga a sessão no banco.
 6. Páginas e operações privadas verificam a sessão no servidor. Administração exige o e-mail configurado em `ADMIN_EMAIL` com verificação concluída.
 
-BetterAuth 1.7.12 mantém credenciais e sessões no D1 com adaptador Drizzle. As senhas usam o hash scrypt da biblioteca. Códigos e identificadores dos tokens são protegidos por hash/HMAC. Limites de tentativa, intervalo de reenvio e serialização de operações usam D1, preservando o controle entre processos e requisições simultâneas.
+O servidor usa a API HTTPS oficial do Firebase Authentication para cadastro, login, confirmação e recuperação. As sessões da aplicação usam cookies opacos e HttpOnly, com tokens do provedor criptografados no D1. O cliente não recebe os tokens de renovação. A identidade privada depende do UID confirmado pelo Firebase; a coincidência de e-mail não vincula contas antigas a contas novas.
+
+O fluxo anterior BetterAuth/Resend foi preservado como alternativa legada e permanece inativo quando `AUTH_PROVIDER=firebase`. Ele exige suas próprias credenciais e um remetente verificado, e não é necessário para o Firebase.
 
 ## Módulos de gestão
 
@@ -63,7 +65,7 @@ npx tsc --noEmit
 npm run build:cloudflare
 ```
 
-Há testes de autenticação com servidor BetterAuth real, SQLite e transporte de e-mail controlado; também há testes do adaptador HTTP do Resend com respostas controladas, autorização, isolamento por produtor, limites atômicos, suporte, geração de Excel e pagamentos Stripe simulados. Os testes de e-mail controlado não equivalem à entrega de mensagem real em uma caixa de entrada.
+Os 53 testes aprovados antes desta migração cobriam o fluxo legado BetterAuth/Resend e operações de gestão, autorização, isolamento por produtor, limites atômicos, suporte, geração de Excel e pagamentos Stripe simulados. Os testes e a validação do novo fluxo Firebase devem ser conferidos após a integração. Testes com transporte controlado não equivalem à entrega de mensagem real em uma caixa de entrada.
 
 Para a validação independente dos arquivos Excel, configure `CAFEGESTOR_TEST_PYTHON` com um Python que possua openpyxl. Sem isso, apenas esse teste é sinalizado como ignorado.
 

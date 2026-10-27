@@ -2,8 +2,9 @@ import { z } from "zod/v3";
 import { ApiError, assertOwner, assertSameOrigin, entitySchemas, mutationSchema, requireFeature } from "@/lib/security";
 import { asProfile, auditStatement, camel, currentBillingMode, database, decode, emptyData, entitlements, first, identity, initialize, publicConfig, requireAdmin, rows } from "@/lib/server";
 import type { AppData, Plan, Profile, Subscription, Ticket } from "@/lib/types";
-import { verificationIdentifier } from "@/lib/auth-policy";
+import { NativeAuthError, verificationIdentifier } from "@/lib/auth-policy";
 import { authConfiguration } from "@/lib/auth-server";
+import { prepareFirebaseIdentityDeletion, usesFirebase } from "@/lib/firebase-auth";
 
 const tenantTables = { farm: "farms", plot: "plots", season: "seasons", expense: "expenses", production: "productions", revenue: "revenues", ticket: "tickets" } as const;
 type TenantEntity = keyof typeof tenantTables;
@@ -12,6 +13,7 @@ const jsonHeaders = { "Cache-Control": "private, no-store", "X-Content-Type-Opti
 function json(body: unknown, status = 200) { return Response.json(body, { status, headers: jsonHeaders }); }
 async function fail(error: unknown) {
   if (error instanceof ApiError) return json({ error: error.message }, error.status);
+  if (error instanceof NativeAuthError) return json({ error: error.message, code: error.code }, error.status);
   if (error instanceof z.ZodError) return json({ error: error.issues.map((i) => `${i.path.join(".") ? i.path.join(".") + ": " : ""}${i.message}`).join("; ") }, 400);
   const message = error instanceof Error ? `${error.message} ${error.cause instanceof Error ? error.cause.message : ""}` : "";
   if (/no such table|binding.*unavailable/i.test(message)) return json({ error: "O banco de dados precisa ser conectado e suas migrações aplicadas." }, 503);
@@ -115,16 +117,24 @@ export async function POST(request: Request) {
       if ((rawData as { confirm?: string } | undefined)?.confirm !== "EXCLUIR") throw new ApiError(400, "Confirme a exclusão com EXCLUIR.");
       if (await first(db, "SELECT id FROM subscriptions WHERE user_id = ? AND livemode = 1 AND status NOT IN ('canceled', 'incomplete_expired') LIMIT 1", profile.id)) throw new ApiError(409, "Cancele sua assinatura no portal de cobrança e aguarde a confirmação antes de excluir os dados da conta.");
       if (await first(db, "SELECT id FROM billing_checkouts WHERE user_id = ? AND livemode = 1 AND status IN ('creating','open') AND expires_at > unixepoch() LIMIT 1", profile.id)) throw new ApiError(409, "Existe uma contratação em aberto. Aguarde sua expiração antes de excluir a conta.");
+      const deleteIdentity = usesFirebase(authConfiguration()) ? await prepareFirebaseIdentityDeletion(authConfiguration(), db, request.headers, profile.id) : null;
       // Explicit ordering preserves relational integrity and removes personal agricultural data.
       await db.batch([
         ...["expenses", "productions", "revenues", "plots", "farms", "seasons", "tickets"].map((table) => db.prepare(`DELETE FROM ${table} WHERE owner_id = ?`).bind(profile.id)),
         ...["contacts", "crm", "payments", "subscriptions", "events"].map((table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(profile.id)),
         db.prepare("DELETE FROM profiles WHERE id = ?").bind(profile.id),
         // Native identity deletion cascades account credentials and every active session.
-        db.prepare("DELETE FROM auth_verifications WHERE value = ? OR identifier = ?").bind(profile.id, await verificationIdentifier(authConfiguration(), `email-verification-otp-${profile.email}`)),
-        db.prepare("DELETE FROM auth_users WHERE id = ?").bind(profile.id),
+        ...(!usesFirebase(authConfiguration()) ? [
+          db.prepare("DELETE FROM auth_verifications WHERE value = ? OR identifier = ?").bind(profile.id, await verificationIdentifier(authConfiguration(), `email-verification-otp-${profile.email}`)),
+          db.prepare("DELETE FROM auth_users WHERE id = ?").bind(profile.id),
+        ] : []),
+        db.prepare("DELETE FROM firebase_sessions WHERE owner_id = ?").bind(profile.id),
         auditStatement(db, "account-deletion", "delete", "profile", "anonymized"),
       ]);
+      if (deleteIdentity) {
+        try { await deleteIdentity(); }
+        catch { throw new NativeAuthError(503, "IDENTITY_DELETION_PENDING", "Seus dados foram apagados, mas não foi possível excluir seu acesso agora. Entre novamente com sua senha e repita a exclusão da conta."); }
+      }
       return json({ ok: true, deleted: true });
     }
     if (entity in tenantTables) {

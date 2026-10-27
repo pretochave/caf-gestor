@@ -1,54 +1,91 @@
-# Configuração da autenticação independente
+# Autenticação com Firebase, sem domínio pago
 
-## Serviço integrado
+O cliente cria sua conta com nome, e-mail e senha no CaféGestor. Firebase Authentication cuida das credenciais e envia os links de confirmação e recuperação. O aplicativo continua hospedado na Cloudflare em [cafegestor.cafegestor.workers.dev](https://cafegestor.cafegestor.workers.dev). O cliente não precisa de conta Google, ChatGPT ou OpenAI.
 
-BetterAuth fornece o cadastro e as sessões. Resend é o serviço integrado de envio de e-mail. A aplicação chama o endpoint oficial `https://api.resend.com/emails` a partir do servidor e exige a confirmação HTTP com identificador da mensagem. Nenhuma chave é importada por componentes de navegador.
+## Estado da ativação
 
-## O que o responsável precisa configurar
+A opção Firebase foi aprovada para dispensar a compra de domínio. O projeto `cafegestor-77252` foi criado. Ainda é necessário concluir a configuração, aplicar os valores no Worker e realizar um teste com uma caixa de entrada real. A presença de código e variáveis não comprova entrega de e-mail.
 
-1. Uma conta Cloudflare com Worker e banco D1 (o projeto inclui provisionamento e publicação).
-2. Uma conta Resend com chave API de envio.
-3. Um domínio próprio com acesso ao DNS. Adicione esse domínio no Resend e publique os registros solicitados por ele, incluindo SPF/DKIM. Aguarde o estado Verified.
-4. Um remetente desse domínio, por exemplo `CaféGestor <acesso@seu-dominio.com.br>`.
+O fluxo anterior BetterAuth/Resend é uma alternativa legada, inativa quando `AUTH_PROVIDER=firebase`. `RESEND_API_KEY` e `EMAIL_FROM` não são necessários para o fluxo Firebase.
 
-O domínio de envio pode ser diferente do endereço público do aplicativo. O site pode usar workers.dev enquanto o remetente usa o seu domínio de e-mail. Como o proprietário informou que ainda não tem domínio, essa etapa e a chave de envio permanecem pendentes.
+## Configurar o projeto Firebase
 
-Não use credenciais de teste ou um remetente não verificado como se fossem um serviço de cadastro público homologado. O domínio de teste do provedor tem restrições de destinatários e não substitui um remetente de produção.
+1. No [console Firebase](https://console.firebase.google.com/), selecionar o projeto `cafegestor-77252`. Manter o plano **Spark**, sem vincular uma conta de faturamento.
+2. Em **Authentication → Sign-in method**, habilitar apenas **E-mail/senha**. A autenticação por link sem senha não é necessária: o usuário continuará usando sua senha.
+3. Em **Authentication → Settings → Authorized domains**, adicionar `cafegestor.cafegestor.workers.dev`, sem `https://` e sem caminho.
+4. Em **Project settings → General**, registrar um aplicativo Web para o CaféGestor. Não é necessário ativar Firebase Hosting; o site permanece na Cloudflare. Obter o ID do projeto e a chave de API correspondente.
+5. Em **Authentication → Templates**, configurar os modelos de confirmação de e-mail e recuperação de senha. Usar o idioma português e o nome CaféGestor quando essas opções estiverem disponíveis.
+6. Para manter a confirmação e a recuperação dentro da interface do CaféGestor, personalizar a URL da ação para `https://cafegestor.cafegestor.workers.dev/firebase-action`. Configurar somente essa URL: o Firebase acrescenta parâmetros como `mode` e `oobCode` ao enviar a mensagem. Não inserir códigos fixos no modelo.
 
-## Secrets do Worker
+Os manipuladores padrão hospedados pelo Firebase também podem validar os links. Nessa configuração, o usuário conclui a ação na página do Firebase e volta ao CaféGestor para entrar. Isso não exige uma conta Google do cliente. A URL personalizada deve ser testada antes de substituir o manipulador padrão.
+
+O envio nativo de confirmação e recuperação usa a infraestrutura do Firebase, sem autenticar um domínio próprio no Resend. O plano Spark possui cotas; na documentação consultada, são até **1.000 e-mails de confirmação por dia** e **150 e-mails de recuperação por dia**. Esses limites podem mudar e não representam envio ilimitado. Consulte os [limites oficiais](https://firebase.google.com/docs/auth/limits).
+
+## Configuração no servidor Cloudflare
 
 | Nome | Valor |
-|---|---|
-| `SITE_URL` | Origem HTTPS exata do endereço publicado, sem caminho, query ou barra adicional. |
-| `BETTER_AUTH_SECRET` | Segredo aleatório com pelo menos 32 caracteres, gerado uma vez e mantido apenas no servidor. |
-| `RESEND_API_KEY` | Chave API real do Resend, com permissão para enviar pelo domínio escolhido. |
-| `EMAIL_FROM` | Remetente verificado; por exemplo CaféGestor <acesso@seu-dominio.com.br>. |
-| `ADMIN_EMAIL` | E-mail do administrador informado pelo proprietário, configurado somente no servidor. Só concede administração após verificação do e-mail. |
-| `DB` | Binding para o banco D1 provisionado e migrado; não é uma variável textual. |
+| --- | --- |
+| `AUTH_PROVIDER` | `firebase`. |
+| `FIREBASE_PROJECT_ID` | `cafegestor-77252`, ID do projeto criado. |
+| `FIREBASE_API_KEY` | Chave de API do mesmo projeto, autorizada a usar Firebase Authentication. |
+| `SITE_URL` | `https://cafegestor.cafegestor.workers.dev`, sem caminho ou query. |
+| `BETTER_AUTH_SECRET` | Segredo aleatório de pelo menos 32 caracteres, mantido estável no servidor para proteger a sessão e os tokens armazenados. |
+| `ADMIN_EMAIL` | E-mail do administrador informado pelo proprietário, configurado somente no servidor. O e-mail precisa estar confirmado pelo Firebase. |
+| `DB` | Binding para o banco D1 migrado. Não é uma variável textual. |
 
-Configure as chaves no painel Worker → Settings → Variables and Secrets, ou por `wrangler secret put NOME`. Não as envie para o GitHub, para formulários públicos ou para mensagens deste chat. O `.env.example` contém apenas os nomes. `.dev.vars` e arquivos de ambiente estão ignorados pelo Git.
+Configurar em **Workers & Pages → cafegestor → Settings → Variables and Secrets**, ou com `wrangler secret put NOME`. Fazer Deploy após aplicar os valores. O `.env.example` contém os nomes; `.dev.vars` e arquivos de ambiente locais são ignorados pelo Git.
 
-## Endpoints reais
+Em SDKs convencionais, a chave Firebase identifica o projeto e não é uma chave privada de conta de serviço. Nesta arquitetura, as chamadas ao Firebase saem do servidor e a chave permanece na configuração do Worker. Não é necessário colocar uma conta de serviço ou chave privada no navegador. Não enviar chaves, senhas ou tokens ao GitHub ou ao chat.
 
-- POST `/api/auth/sign-up/email`: name,email,password.
-- POST `/api/auth/email-otp/send-verification-otp`: email,type=email-verification.
-- POST `/api/auth/email-otp/verify-email`: email,otp.
-- POST `/api/auth/sign-in/email`: email,password,rememberMe.
-- POST `/api/auth/request-password-reset`: email,redirectTo.
-- POST `/api/auth/reset-password`: token,newPassword.
-- POST `/api/auth/sign-out`: objeto JSON vazio.
-- GET `/api/auth/status`: informa configuração e políticas, sem devolver os valores secretos.
+## Fluxo e proteção de dados
 
-As mutações aceitam somente JSON da origem configurada. Links de recuperação sempre retornam à página própria `/redefinir-senha`. Rotas opcionais da biblioteca para login por OTP, alteração de e-mail e associação de contas não estão expostas.
+- Cadastro: nome, e-mail e senha; o servidor solicita o envio do link de confirmação.
+- Ativação: o Firebase valida o código de ação recebido no link. O aplicativo exige e-mail confirmado antes de liberar dados privados.
+- Login: e-mail e senha, com verificação da identidade no servidor.
+- Reenvio: intervalo mínimo de 60 segundos e limite de cinco solicitações em 15 minutos por e-mail, além dos limites por IP persistidos no D1. Pode exigir a senha novamente.
+- Recuperação: link de ação emitido pelo Firebase, validado no servidor antes de trocar a senha. Links inválidos, usados ou expirados não autorizam a troca. A validade dos links é definida pelo Firebase, não pelos prazos do fluxo legado.
+- Sessão: cookie opaco HttpOnly, Secure em HTTPS e SameSite=Lax. Com a opção de continuar conectado, a sessão da aplicação dura até sete dias; sem essa opção, o cookie é de sessão e o registro expira em até 24 horas. Tokens do Firebase ficam criptografados com AES-GCM no D1; o cookie é armazenado como hash HMAC e a senha não é persistida pela aplicação.
+- Conta pendente: a sessão limitada de 15 minutos permite somente reenviar a confirmação; não libera dados privados.
+- Revogação: o servidor renova e consulta os tokens no Firebase ao autorizar acesso, para validar o estado atual da conta. Sair revoga a sessão da aplicação; redefinir a senha encerra as sessões anteriores.
+- Área privada: usa a identidade `firebase:projectId:uid`, obtida do provedor, nunca um e-mail ou identificador fornecido pelo navegador. Cabeçalhos da hospedagem antiga não autenticam um usuário.
 
-## Validar com entrega real após configurar
+Uma conta nova não herda registros de uma conta legada por ter o mesmo e-mail. Uma migração de dados exige mapeamento explícito de usuários e conferência das permissões.
 
-1. Crie uma conta descartável com um e-mail que você consiga consultar.
-2. Confira que o login é recusado antes da verificação.
-3. Receba e digite o código no aplicativo. Confirme a ativação e entre com a senha.
-4. Verifique um código incorreto, código expirado, limite de cinco tentativas e reenvio antes de 60 segundos.
-5. Saia e confira que a sessão anterior não abre a área privada.
-6. Solicite recuperação e abra o link recebido. Depois da troca, confira que senha e sessões antigas deixam de funcionar e que o link não pode ser usado novamente.
-7. Cadastre outro usuário e confira que não acessa fazendas, lançamentos ou chamados do primeiro.
+## Endpoints da aplicação
 
-Os testes automatizados já exercitam esse fluxo com SQLite e envio controlado. A entrega real pelo Resend só pode ser confirmada depois de configurar a chave e o remetente e concluir esta validação com uma caixa de entrada real.
+| Método e caminho | Dados principais |
+| --- | --- |
+| POST `/api/auth/sign-up/email` | `name`, `email`, `password`. |
+| POST `/api/auth/sign-in/email` | `email`, `password`, `rememberMe`. |
+| POST `/api/auth/send-verification-email` | `email` e, quando necessário, `password` para reautenticação. |
+| POST `/api/auth/verify-email` | `oobCode` recebido no link. |
+| POST `/api/auth/request-password-reset` | `email`. |
+| POST `/api/auth/reset-password` | `token` (o `oobCode` do Firebase), `newPassword`. |
+| POST `/api/auth/sign-out` | Objeto JSON vazio. |
+| GET `/api/auth/get-session` | Consulta da sessão atual. |
+| GET `/api/auth/status` | Estado de configuração e políticas, sem valores de chaves ou tokens. |
+
+As mutações aceitam JSON da origem autorizada. O callback `/firebase-action` encaminha os modos `verifyEmail` e `resetPassword` para a interface correspondente; `/verificar-email` e `/redefinir-senha` também aceitam os parâmetros dos links. As URLs de continuação solicitadas pelo servidor são restritas ao próprio CaféGestor.
+
+O estado de configuração informa `provider: firebase`, `verificationMethod: link`, os nomes de configurações ausentes e as políticas públicas. O campo `configured` não garante entrega na caixa de entrada: somente um envio real seguido da confirmação pelo destinatário comprova o fluxo completo.
+
+## Validar antes de divulgar o cadastro
+
+1. Confirmar que o projeto está no plano Spark e que E-mail/senha está habilitado.
+2. Criar uma conta de teste com uma caixa de entrada acessível. Conferir o recebimento real do link e a identidade visual da mensagem.
+3. Conferir que o login privado é recusado antes da confirmação do e-mail.
+4. Abrir o link, confirmar o e-mail e entrar com a senha. Testar um link inválido, expirado ou já utilizado.
+5. Testar reenvio antes e depois do intervalo mínimo e uma falha do serviço de envio. A interface não deve anunciar envio quando o provedor retorna erro.
+6. Sair e conferir que a sessão anterior não abre a área privada.
+7. Solicitar recuperação, receber o link e trocar a senha. Conferir que senha e sessões anteriores não continuam válidas.
+8. Criar outro usuário e testar o isolamento das fazendas, lançamentos e chamados.
+
+Os testes automatizados com respostas controladas são úteis para erros, limites e isolamento. A validação com uma caixa real continua necessária para confirmar a entrega pelo Firebase.
+
+## Referências oficiais
+
+- [Firebase Auth REST API](https://firebase.google.com/docs/reference/rest/auth).
+- [Confirmação de e-mail e recuperação de senha](https://firebase.google.com/docs/auth/web/manage-users).
+- [Manipuladores personalizados de ações por e-mail](https://firebase.google.com/docs/auth/custom-email-handler).
+- [Limites do Firebase Authentication](https://firebase.google.com/docs/auth/limits).
+- [Secrets da Cloudflare](https://developers.cloudflare.com/workers/configuration/secrets/).

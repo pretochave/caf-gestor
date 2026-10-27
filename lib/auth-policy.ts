@@ -1,5 +1,5 @@
 export const authPolicies = { otpDigits: 6, otpExpiresIn: 600, otpAllowedAttempts: 5, resendInterval: 60, resetExpiresIn: 1800 } as const;
-export type AuthConfig = { BETTER_AUTH_SECRET?: string; SITE_URL?: string; RESEND_API_KEY?: string; EMAIL_FROM?: string; ADMIN_EMAIL?: string };
+export type AuthConfig = { AUTH_PROVIDER?: string; FIREBASE_API_KEY?: string; FIREBASE_PROJECT_ID?: string; BETTER_AUTH_SECRET?: string; SITE_URL?: string; RESEND_API_KEY?: string; EMAIL_FROM?: string; ADMIN_EMAIL?: string };
 export class NativeAuthError extends Error {
   status: number; code: string; retryAfter?: number;
   constructor(status: number, code: string, message: string, retryAfter?: number) { super(message); this.status = status; this.code = code; this.retryAfter = retryAfter; }
