@@ -16,7 +16,7 @@ test('Resend sends the real API request with server-only credentials and checks 
   assert.equal(observed.init.method, 'POST');
   assert.equal(observed.init.headers.Authorization, 'Bearer ' + config.RESEND_API_KEY);
   assert.match(observed.init.headers['Idempotency-Key'], /^[a-f0-9-]{36}$/);
-  assert.equal(observed.init.redirect, 'error');
+  assert.equal(observed.init.redirect, 'manual');
   assert.ok(observed.init.signal instanceof AbortSignal);
   const body = JSON.parse(observed.init.body);
   assert.equal(body.from, config.EMAIL_FROM);

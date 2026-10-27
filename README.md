@@ -6,7 +6,9 @@ Aplicativo em português com site público, cadastro próprio, confirmação de 
 
 Site independente publicado em [cafegestor.cafegestor.workers.dev](https://cafegestor.cafegestor.workers.dev), com banco D1 remoto configurado. O código está no [GitHub](https://github.com/pretochave/caf-gestor). O endereço workers.dev permite manter o acesso público sem registrar um domínio próprio.
 
-O projeto Firebase `cafegestor-77252` foi criado para confirmar e-mails e recuperar senhas usando os e-mails do próprio serviço, sem comprar domínio nem configurar Resend. A ativação real ainda depende da configuração do projeto, das variáveis do Worker e de um teste com uma caixa de entrada real. A preparação do código não comprova entrega de e-mail. Veja [AUTHENTICATION.md](AUTHENTICATION.md).
+O Firebase `cafegestor-77252` está integrado à versão publicada: E-mail/senha habilitado, domínio autorizado, variáveis do Worker aplicadas e cinco migrações do D1 concluídas. O endpoint de configuração confirma `provider: firebase`, `verificationMethod: link` e nenhuma configuração ausente. O envio usa o próprio Firebase, sem comprar domínio nem configurar Resend. O teste de recebimento e confirmação em uma caixa de entrada real ainda está pendente; configuração válida não comprova entrega. Veja [AUTHENTICATION.md](AUTHENTICATION.md).
+
+Os links usam a página de ação padrão do Firebase. O console recusou a personalização dos modelos e da URL de ação neste projeto; após confirmar ou redefinir a senha nessa página, o cliente volta ao CaféGestor para entrar.
 
 ## Começar
 
@@ -65,7 +67,7 @@ npx tsc --noEmit
 npm run build:cloudflare
 ```
 
-Os 53 testes aprovados antes desta migração cobriam o fluxo legado BetterAuth/Resend e operações de gestão, autorização, isolamento por produtor, limites atômicos, suporte, geração de Excel e pagamentos Stripe simulados. Os testes e a validação do novo fluxo Firebase devem ser conferidos após a integração. Testes com transporte controlado não equivalem à entrega de mensagem real em uma caixa de entrada.
+Foram aprovados 66 testes, sem testes ignorados, além da validação de tipos e do build independente. A cobertura inclui autenticação Firebase, respostas inválidas do provedor, exclusão de conta, fluxo legado, operações de gestão, autorização, isolamento por produtor, limites atômicos, suporte, Excel e pagamentos Stripe simulados. Um teste com workerd e D1 reais também confere as chamadas aos provedores e a rejeição de redirecionamentos. Na publicação, a conexão real ao Firebase foi validada com login de credenciais inválidas e solicitação de recuperação para endereço reservado sem conta; o dashboard sem sessão redirecionou para o login próprio. Esses testes não comprovam entrega de mensagem em uma caixa de entrada.
 
 Para a validação independente dos arquivos Excel, configure `CAFEGESTOR_TEST_PYTHON` com um Python que possua openpyxl. Sem isso, apenas esse teste é sinalizado como ignorado.
 

@@ -4,7 +4,9 @@ O cliente cria sua conta com nome, e-mail e senha no CaféGestor. Firebase Authe
 
 ## Estado da ativação
 
-A opção Firebase foi aprovada para dispensar a compra de domínio. O projeto `cafegestor-77252` foi criado. Ainda é necessário concluir a configuração, aplicar os valores no Worker e realizar um teste com uma caixa de entrada real. A presença de código e variáveis não comprova entrega de e-mail.
+A integração Firebase está publicada no Worker, com a migração `0004_firebase_sessions` aplicada. O projeto `cafegestor-77252` está no plano Spark, E-mail/senha está habilitado e `cafegestor.cafegestor.workers.dev` consta nos domínios autorizados. Os seis secrets do Worker foram aplicados; `/api/auth/status` confirmou Firebase por link, configuração completa e nenhuma variável ausente. O teste de recebimento e confirmação em uma caixa de entrada real ainda está pendente. A presença de código e variáveis não comprova entrega de e-mail.
+
+O console deste projeto recusou alterações de modelos de e-mail com a mensagem “As atualizações de modelos de e-mail não estão disponíveis para este projeto” e orientou entrar em contato com o Suporte do Firebase. Assim, permanecem o remetente padrão `noreply@cafegestor-77252.firebaseapp.com` e a página de ação `https://cafegestor-77252.firebaseapp.com/__/auth/action`. O cliente confirma o e-mail ou redefine a senha nessa página e volta ao CaféGestor para entrar. O servidor solicita o idioma português pelo cabeçalho oficial `X-Firebase-Locale: pt-BR`; a mensagem recebida ainda precisa ser conferida.
 
 O fluxo anterior BetterAuth/Resend é uma alternativa legada, inativa quando `AUTH_PROVIDER=firebase`. `RESEND_API_KEY` e `EMAIL_FROM` não são necessários para o fluxo Firebase.
 
@@ -14,10 +16,10 @@ O fluxo anterior BetterAuth/Resend é uma alternativa legada, inativa quando `AU
 2. Em **Authentication → Sign-in method**, habilitar apenas **E-mail/senha**. A autenticação por link sem senha não é necessária: o usuário continuará usando sua senha.
 3. Em **Authentication → Settings → Authorized domains**, adicionar `cafegestor.cafegestor.workers.dev`, sem `https://` e sem caminho.
 4. Em **Project settings → General**, registrar um aplicativo Web para o CaféGestor. Não é necessário ativar Firebase Hosting; o site permanece na Cloudflare. Obter o ID do projeto e a chave de API correspondente.
-5. Em **Authentication → Templates**, configurar os modelos de confirmação de e-mail e recuperação de senha. Usar o idioma português e o nome CaféGestor quando essas opções estiverem disponíveis.
-6. Para manter a confirmação e a recuperação dentro da interface do CaféGestor, personalizar a URL da ação para `https://cafegestor.cafegestor.workers.dev/firebase-action`. Configurar somente essa URL: o Firebase acrescenta parâmetros como `mode` e `oobCode` ao enviar a mensagem. Não inserir códigos fixos no modelo.
+5. Em **Authentication → Templates**, conferir os modelos de confirmação de e-mail e recuperação de senha. Neste projeto, a edição foi recusada pelo console; os modelos padrão permanecem em uso.
+6. Se o Firebase liberar a edição no futuro, a integração já aceita a URL de ação `https://cafegestor.cafegestor.workers.dev/firebase-action`. Configurar somente essa URL: o Firebase acrescenta parâmetros como `mode` e `oobCode` ao enviar a mensagem. Não inserir códigos fixos no modelo. Conferir o fluxo antes de trocar o manipulador padrão.
 
-Os manipuladores padrão hospedados pelo Firebase também podem validar os links. Nessa configuração, o usuário conclui a ação na página do Firebase e volta ao CaféGestor para entrar. Isso não exige uma conta Google do cliente. A URL personalizada deve ser testada antes de substituir o manipulador padrão.
+Os manipuladores padrão hospedados pelo Firebase validam os links na configuração atual. O usuário conclui a ação na página do Firebase e volta ao CaféGestor para entrar. Isso não exige uma conta Google do cliente nem a compra de um domínio.
 
 O envio nativo de confirmação e recuperação usa a infraestrutura do Firebase, sem autenticar um domínio próprio no Resend. O plano Spark possui cotas; na documentação consultada, são até **1.000 e-mails de confirmação por dia** e **150 e-mails de recuperação por dia**. Esses limites podem mudar e não representam envio ilimitado. Consulte os [limites oficiais](https://firebase.google.com/docs/auth/limits).
 
@@ -80,7 +82,7 @@ O estado de configuração informa `provider: firebase`, `verificationMethod: li
 7. Solicitar recuperação, receber o link e trocar a senha. Conferir que senha e sessões anteriores não continuam válidas.
 8. Criar outro usuário e testar o isolamento das fazendas, lançamentos e chamados.
 
-Os testes automatizados com respostas controladas são úteis para erros, limites e isolamento. A validação com uma caixa real continua necessária para confirmar a entrega pelo Firebase.
+Os 66 testes automatizados passaram, sem testes ignorados, assim como a validação de tipos e o build independente. Eles incluem respostas controladas para erros, limites, protocolo do Firebase e exclusão de conta, além de chamadas aos provedores no workerd com D1 real. O transporte usa `redirect: manual`, aceito pelo runtime Cloudflare, e rejeita redirecionamentos sem encaminhar credenciais. Na publicação, o endpoint de configuração, a conexão real ao Firebase com credenciais inválidas e o redirecionamento do dashboard sem sessão foram conferidos. A validação com uma caixa real continua necessária para confirmar a entrega pelo Firebase.
 
 ## Referências oficiais
 

@@ -72,11 +72,13 @@ async function provider(config: AuthConfig, endpoint: string, body: Record<strin
   let response: Response;
   try {
     response = await (options.fetcher || fetch)(url + "?key=" + encodeURIComponent(config.FIREBASE_API_KEY!), {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(12_000),
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(12_000),
       headers: { "Content-Type": refresh ? "application/x-www-form-urlencoded" : "application/json", "X-Firebase-Locale": "pt-BR" },
       body: refresh ? new URLSearchParams(body as Record<string, string>).toString() : JSON.stringify(body),
     });
   } catch { throw new NativeAuthError(503, "AUTH_PROVIDER_UNAVAILABLE", "Não foi possível conectar ao serviço de autenticação. Tente novamente em breve."); }
+  // Workers supports manual/follow only. Never forward credentials on redirects.
+  if (response.status >= 300 && response.status < 400) throw new NativeAuthError(503, "AUTH_PROVIDER_UNAVAILABLE", "O serviço de autenticação retornou uma resposta inesperada. Tente novamente em breve.");
   let result: Record<string, unknown>;
   try { result = await response.json() as Record<string, unknown>; } catch { throw new NativeAuthError(503, "AUTH_PROVIDER_UNAVAILABLE", "O serviço de autenticação retornou uma resposta incompleta. Tente novamente."); }
   if (!result || typeof result !== "object" || Array.isArray(result) || (response.ok && result.error !== undefined)) throw new NativeAuthError(503, "AUTH_PROVIDER_UNAVAILABLE", "O serviço de autenticação retornou uma resposta incompleta. Tente novamente.");

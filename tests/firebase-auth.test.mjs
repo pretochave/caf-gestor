@@ -26,7 +26,7 @@ function fixture() {
     const url = new URL(input), body = init.headers['Content-Type'].startsWith('application/json') ? JSON.parse(init.body) : Object.fromEntries(new URLSearchParams(init.body));
     const endpoint = url.hostname === 'securetoken.googleapis.com' ? 'refresh' : url.pathname.split(':')[1];
     calls.push({ url, endpoint, body, init });
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual');
     assert.ok(init.signal instanceof AbortSignal);
     if (unavailable) throw new Error('provider detail and credential ' + config.FIREBASE_API_KEY);
     if (endpoint === 'signUp') {

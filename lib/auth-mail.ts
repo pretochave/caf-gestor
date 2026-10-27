@@ -12,7 +12,7 @@ export function resendMailer(config: AuthConfig, fetcher: typeof fetch = fetch):
   return async (mail) => {
     if (!nativeAuthStatus(config).mailConfigured) throw new NativeAuthError(503, "EMAIL_NOT_CONFIGURED", "O envio de e-mails ainda não foi configurado pelo responsável pela plataforma.");
     let response: Response;
-    try { response = await fetcher("https://api.resend.com/emails", { method: "POST", redirect: "error", signal: AbortSignal.timeout(12_000), headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ from: config.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }) }); }
+    try { response = await fetcher("https://api.resend.com/emails", { method: "POST", redirect: "manual", signal: AbortSignal.timeout(12_000), headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ from: config.EMAIL_FROM, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }) }); }
     catch { throw new NativeAuthError(503, "EMAIL_DELIVERY_UNAVAILABLE", "Não foi possível enviar o e-mail agora. Aguarde um minuto e tente novamente."); }
     if (!response.ok) throw new NativeAuthError(503, "EMAIL_DELIVERY_UNAVAILABLE", "O serviço de e-mail não confirmou o envio. Verifique o endereço ou tente novamente em um minuto.");
     let receipt: { id?: string };

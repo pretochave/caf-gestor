@@ -55,7 +55,7 @@ export async function stripeRequest<T = Row>(config: BillingConfig, path: string
   const headers: Record<string, string> = { Authorization: `Bearer ${config.STRIPE_SECRET_KEY}`, "Stripe-Version": API_VERSION };
   if (body) { headers["Content-Type"] = "application/x-www-form-urlencoded"; headers["Idempotency-Key"] = idempotencyKey!; }
   let response: Response;
-  try { response = await fetcher(`https://api.stripe.com${path}`, { method: body ? "POST" : "GET", headers, body, redirect: "error", signal: AbortSignal.timeout(12_000) }); }
+  try { response = await fetcher(`https://api.stripe.com${path}`, { method: body ? "POST" : "GET", headers, body, redirect: "manual", signal: AbortSignal.timeout(12_000) }); }
   catch { throw new BillingError(503, "O provedor de pagamento está indisponível. Tente novamente em instantes."); }
   if (!response.ok) throw new BillingError(response.status === 429 || response.status >= 500 ? 503 : 502, "O provedor não confirmou a operação. Nenhum acesso adicional foi liberado.");
   return await response.json() as T;
